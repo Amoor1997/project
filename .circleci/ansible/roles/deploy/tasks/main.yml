@@ -3,9 +3,7 @@
   become: true
   copy:
     src: /root/project/artifact.tar.gz
-          remote_src=no
     dest: /home/ubuntu/artifact.tar.gz
-          remote_src=no
 
 
 - name: Unarchive
