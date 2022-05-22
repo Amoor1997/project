@@ -320,49 +320,43 @@ jobs:
 
   deploy-backend:
     docker:
-      # Docker image here that supports AWS CLI
-      - image: cimg/base:stable
+      - image: python:3.7-alpine3.11
+
     steps:
       # Checkout code from git
       - checkout
       - install_awscli
       - install_nodejs
-      - install_ansible
       - add_ssh_keys:
           fingerprints: ["7b:b6:01:17:9c:62:3d:c2:0a:6c:18:e5:78:cf:cd:f6"]
           
       - attach_workspace:
           at: ~/
-      - restore_cache:
-          keys:
-            - build-backend  
+
       - run:
           name: Install dependencies
           command: |
-            cd backend
-            npm install
+            apk add --update ansible nodejs npm tar gzip
       - run:
-          name: package backend
+          name: Build backend
           command: |
             cd backend
+            npm i
             npm run build
             cd ..
             tar -C backend -czvf artifact.tar.gz .
-            # cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
+            # export ANSIBLE_HOST_KEY_CHECKING=False 
+            # cd .circleci/ansible
+            # echo "Contents  of the inventory.txt file is -------"
+            # cat inventory.txt
+            # ansible-playbook -i inventory.txt deploy-backend.yml
             
       - run:
           name: Deploy backend
           command: |
-            export TYPEORM_MIGRATIONS_DIR=./migrations
-            export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
-            export TYPEORM_MIGRATIONS=./migrations*ts
             export ANSIBLE_HOST_KEY_CHECKING=False
-            # aws ec2 describe-instances \
-            # --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-            # --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            # --output text >> .circleci/ansible/inventory.txt
-            cat .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
+
 
       - destroy-environment:
           workflowID: ${CIRCLE_WORKFLOW_ID:0:7}
