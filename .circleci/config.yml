@@ -391,9 +391,9 @@ jobs:
 
             if curl -s ${API_URL}/api/status | grep "ok"
             then
-              return 0
+              exit 0
             else
-              return 1
+              exit 1
             fi 
 
       - run:
@@ -402,9 +402,9 @@ jobs:
             URL=http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website-us-west-2.amazonaws.com            
             if curl -s $URL | grep "Welcome"
             then
-              return 0
+              exit 0
             else
-              return 1
+              exit 1
             fi 
 
             
@@ -418,37 +418,31 @@ jobs:
 
   cloudfront-update:
     docker:
-      - image: amazon/aws-cli
+      - image: cimg/base:stable
     steps:
+      # Checkout code from git
       - checkout
-      - run:
-          name: Install dependencies
-          command: |
-            yum -y install tar gzip
-      - attach_workspace:
-          at: ~/
+      - install_awscli
+      - install_nodejs
 
       - run:
-          name: Update cloudfront distribution
+          name: Save old WorkflowID
           command: |
-            OldWorkflowID=$(aws cloudformation list-exports \
-              --query "Exports[?Name==\`WorkflowID\`].Value" \
+           export OldWorkflowID=$(aws cloudformation  \
+              list-exports --query "Exports[?Name==\`WorkflowID\`].Value" \
               --no-paginate --output text)
 
             echo $OldWorkflowID >> ~/OldWorkflowID.txt
             cat ~/OldWorkflowID.txt
 
-            curl -k https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/old_workflow_id  -d $OldWorkflowID
-
+            curl  https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/old_workflow_id  -d $OldWorkflowID
+      - run:
+          name: update cloudfront
+          command: |
             aws cloudformation deploy \
               --template-file .circleci/files/cloudfront.yml \
-              --stack-name InitialStack \
               --parameter-overrides WorkflowID="${CIRCLE_WORKFLOW_ID:0:7}" \
-              --tags project=udapeople
-
-
-            echo OldWorkflowID: "${OldWorkflowID}"
-            echo Current Workfolw Id:"${CIRCLE_WORKFLOW_ID:0:7}" 
+              --stack-name InitialStack \
 
            
       - destroy-environment:
@@ -529,7 +523,7 @@ workflows:
           requires: [run-migrations]
       - smoke-test:
           requires: [deploy-backend, deploy-frontend]
-      # - cloudfront-update:
-      #     requires: [smoke-test]
+      - cloudfront-update:
+          requires: [smoke-test]
       # - cleanup:
       #     requires: [cloudfront-update]
