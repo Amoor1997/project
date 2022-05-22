@@ -267,30 +267,22 @@ jobs:
 
   deploy-frontend:
     docker:
-      # Docker image here that supports AWS CLI
-      - image: cimg/base:stable
+      - image: circleci/node:13.8.0
     steps:
-      # Checkout code from git
       - checkout
-      - install_awscli
-      - install_nodejs
-      - restore_cache:
-          keys:
-            - build-backend
-      # attach workspace 
       - attach_workspace:
           at: ~/
-    
+
       - run:
-          name: Install dependencies
+          name: Install aws dependencies
           command: |
-             cd frontend
-             npm install
-             
+            sudo apt update && sudo apt install -yy less
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
       - run:
           name: Get backend url
           command: |
-
             export BACKEND_IP=$(aws ec2 describe-instances \
               --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
               --query 'Reservations[*].Instances[*].PublicIpAddress' \
@@ -300,7 +292,6 @@ jobs:
             echo "API_URL = ${API_URL}"
             echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
             cat frontend/.env
-
       - run:
           name: Deploy frontend objects
           command: |
@@ -337,7 +328,8 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            apk add --update ansible nodejs npm tar gzip
+            cd backend
+            npm install
       - run:
           name: Build backend
           command: |
