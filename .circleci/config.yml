@@ -16,34 +16,7 @@ commands:
             aws cloudformation delete-stack --stack-name udapeople-backend-<< parameters.workflowID >>
             aws s3 rm s3://udapeople-<<parameters.workflowID>> --recursive
             aws cloudformation delete-stack --stack-name udapeople-frontend-<< parameters.workflowID >>
-  install_awscli:
-     description: install aws cli v2
-     steps:
-       - run:
-            name: install aws cli v2
-            command: |
-             
-                  curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o "awscliv2.zip"
-                  unzip awscliv2.zip
-                  sudo ./aws/install
-  install_ansible:
-     description: install ansible 
-     steps:
-       - run:
-            name: install ansible 
-            command: |
-                 sudo apt update
-                 sudo apt install software-properties-common -y
-                  sudo apt-add-repository ppa:ansible/ansible
-                  sudo apt install ansible -y
-  install_nodejs:
-     description: install node.js v13
-     steps:
-       - run:
-            name: install node.js v13
-            command: |
-                 curl -fsSL https://deb.nodesource.com/setup_13.x | sudo -E bash -
-                 sudo apt install -y nodejs
+
   revert-migrations:
     description: Revert the last migration if successfully run in the current workflow.
     parameters:
@@ -142,9 +115,7 @@ jobs:
             cd frontend
             npm install
             npm audit fix --audit-level=critical --force
-            npm audit fix --force
             npm audit --audit-level=critical
-            npm audit fix
 
   scan-backend:
     docker:
@@ -160,17 +131,20 @@ jobs:
             npm install
             npm audit fix --audit-level=critical --force
             npm audit fix --audit-level=critical --force
-            npm audit fix --force
-            npm audit --audit-level=critical 
+            npm audit --audit-level=critical
 
 
   deploy-infrastructure:
     docker:
-      # Docker image here that supports AWS CLI
-      - image: cimg/base:stable
+      - image: amazon/aws-cli
     steps:
       - checkout
-      - install_awscli
+
+      - run:
+          name: Install tar utility
+          command: |
+            yum install -y tar gzip
+
       - run:
           name: Ensure back-end infrastructure exists
           command: |
@@ -210,17 +184,25 @@ jobs:
 
   configure-infrastructure:
     docker:
-      # Docker image here that supports AWS CLI
-      - image: cimg/base:stable
+      - image: python:3.7-alpine3.11
+        environment:
+            ANSIBLE_HOST_KEY_CHECKING: "no"
     steps:
       - checkout
-      - install_ansible
-      - install_awscli
       - add_ssh_keys:
           fingerprints: ["7b:b6:01:17:9c:62:3d:c2:0a:6c:18:e5:78:cf:cd:f6"]
           
       - attach_workspace:
           at: ~/
+
+      - run:
+          name: Install dependencies
+          command: |
+            apk add curl
+            apk add --upgrade bash
+            apk add --update ansible
+            apk add openssh-client
+            pip3 install awscli
             
       - run:
           name: Configure server
@@ -234,33 +216,41 @@ jobs:
 
   run-migrations:
     docker:
-      # Docker image here that supports NodeJS
-      - image: sleavely/node-awscli:14.x
+      - image: circleci/node:13.8.0
     steps:
-      # Checkout code from git
       - checkout
-      # Restore Cache from backend-build
       - restore_cache:
           keys: [backend-build]
-          
+
+      - run:
+          name: Install aws dependencies
+          command: |
+            sudo apt update && sudo apt install -yy less
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+    
+      
+
       - run:
           name: Run migrations
           command: |
-            # Your code here
-            # exit 1
             cd backend
             npm install
-            # Run and save the migration output
             npm run migrations > migrations_dump.txt
-            
+
       - run:
-          name: Send migration status to kvdb.io OR memstash.io
-          command: |   
-              if grep -q "has been executed successfully"  ./backend/migrations_dump.txt   
-              then
-              curl https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d "1"
-              fi
-              
+          name: Send migration results to kvdb
+          command: |
+            if grep -q "has been executed successfully." ~/project/backend/migrations_dump.txt
+            then 
+              echo "has been done successfully"
+              curl -k https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
+            else
+              echo "has failed"
+              curl -k https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '0'
+            fi
+
       - destroy-environment:
           workflowID: ${CIRCLE_WORKFLOW_ID:0:7}
           event: on_fail      
@@ -280,9 +270,11 @@ jobs:
             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
             unzip awscliv2.zip
             sudo ./aws/install
+
       - run:
           name: Get backend url
           command: |
+
             export BACKEND_IP=$(aws ec2 describe-instances \
               --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
               --query 'Reservations[*].Instances[*].PublicIpAddress' \
@@ -292,6 +284,7 @@ jobs:
             echo "API_URL = ${API_URL}"
             echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
             cat frontend/.env
+
       - run:
           name: Deploy frontend objects
           command: |
@@ -311,14 +304,10 @@ jobs:
 
   deploy-backend:
     docker:
-      - image: cimg/base:stable
+      - image: python:3.7-alpine3.11
 
     steps:
-      # Checkout code from git
       - checkout
-      - install_awscli
-      - install_nodejs
-      - install_ansible
       - add_ssh_keys:
           fingerprints: ["7b:b6:01:17:9c:62:3d:c2:0a:6c:18:e5:78:cf:cd:f6"]
           
@@ -328,8 +317,8 @@ jobs:
       - run:
           name: Install dependencies
           command: |
-            cd backend
-            npm install
+            apk add --update ansible nodejs npm tar gzip
+
       - run:
           name: Build backend
           command: |
@@ -349,7 +338,6 @@ jobs:
           command: |
             export ANSIBLE_HOST_KEY_CHECKING=False
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
-
 
       - destroy-environment:
           workflowID: ${CIRCLE_WORKFLOW_ID:0:7}
@@ -463,7 +451,7 @@ jobs:
       - run:
           name: Get old stack workflow id
           command: |
-            OldWorkflowID=$(curl --insecure  https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/old_workflow_id)
+            OldWorkflowID=$(curl --insecure  https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Qold_workflow_id)
             # OldWorkflowID=$(aws cloudformation list-exports \
             #   --query "Exports[?Name==\`WorkflowID\`].Value" \
             #   --no-paginate --output text)
@@ -513,6 +501,9 @@ workflows:
           requires: [build-frontend]
       - deploy-infrastructure:
           requires: [test-frontend, test-backend, scan-frontend, scan-backend]
+          filters:
+            branches:
+              only: [master]
       - configure-infrastructure:
           requires: [deploy-infrastructure]
       - run-migrations:
