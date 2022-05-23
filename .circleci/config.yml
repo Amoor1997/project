@@ -235,7 +235,6 @@ jobs:
 
   run-migrations:
     docker:
-      # Docker image here that supports AWS CLI
       - image: cimg/node:13.8.0
     steps:
       - checkout
