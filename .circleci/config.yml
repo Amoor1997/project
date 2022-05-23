@@ -251,14 +251,16 @@ jobs:
       - run:
           name: Send migration status to kvdb.io OR memstash.io
           command: |   
-              if grep -q "has been executed successfully"  ./backend/migrations_dump.txt   
+              if grep -q "has been executed successfully"  ~/project/backend/migrations_dump.txt   
               then
               curl https://kvdb.io/${KVDB_BUCKET}/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
               fi
               
       - destroy-environment:
           workflowID: ${CIRCLE_WORKFLOW_ID:0:7}
-          event: on_fail      
+          event: on_fail  
+      - revert-migrations:
+          workflowID: ${CIRCLE_WORKFLOW_ID:0:7}     
 
   deploy-frontend:
     docker:
