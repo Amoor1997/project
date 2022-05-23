@@ -55,7 +55,7 @@ commands:
           when: on_fail
           command: |
       
-            SUCCESS=$(curl --insecure  https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/migration_<< parameters.workflowID >>)
+            SUCCESS=$(curl --insecure  https://kvdb.io/N9XNJ6UAPJzcwfnL2WhoDz/migration_<< parameters.workflowID >>)
             if(( $SUCCESS==1 )); 
             then
               cd ~/project/backend
@@ -254,7 +254,7 @@ jobs:
           command: |   
               if grep -q "has been executed successfully"  ./backend/migrations_dump.txt   
               then
-              curl https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d "1"
+              curl https://kvdb.io/${KVDB_BUCKET}/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
               fi
               
       - destroy-environment:
@@ -430,7 +430,7 @@ jobs:
             echo $OldWorkflowID >> ~/OldWorkflowID.txt
             cat ~/OldWorkflowID.txt
 
-            curl  https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/old_workflow_id  -d $OldWorkflowID
+            curl  https://kvdb.io/N9XNJ6UAPJzcwfnL2WhoDz/old_workflow_id  -d $OldWorkflowID
       - run:
           name: update cloudfront
           command: |
@@ -455,7 +455,7 @@ jobs:
       - run:
           name: Get old stack workflow id
           command: |
-            OldWorkflowID=$(curl --insecure  https://kvdb.io/DoT4XB9SaoTdQbMxixhv7Q/old_workflow_id)
+            OldWorkflowID=$(curl --insecure  https://kvdb.io/N9XNJ6UAPJzcwfnL2WhoDz/old_workflow_id)
             # OldWorkflowID=$(aws cloudformation list-exports \
             #   --query "Exports[?Name==\`WorkflowID\`].Value" \
             #   --no-paginate --output text)
