@@ -67,7 +67,7 @@ Resources:
       ImageId: ami-0cb4e786f15603b0d
       Tags:
         - Key: Name
-          Value: !Sub Prometheus-${ID}
+          Value: !Sub Prometheus
   MyEIP:
     Type: AWS::EC2::EIP
     Properties:
